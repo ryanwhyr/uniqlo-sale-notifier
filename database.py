@@ -72,6 +72,21 @@ class Database:
             )
         ''')
         
+        # Migrate existing table if columns don't exist
+        try:
+            cursor.execute('SELECT consecutive_days FROM product_notifications LIMIT 1')
+        except sqlite3.OperationalError:
+            # Column doesn't exist, add it
+            try:
+                cursor.execute('ALTER TABLE product_notifications ADD COLUMN last_promo_price INTEGER')
+            except sqlite3.OperationalError:
+                pass  # Column might already exist
+            
+            try:
+                cursor.execute('ALTER TABLE product_notifications ADD COLUMN consecutive_days INTEGER DEFAULT 1')
+            except sqlite3.OperationalError:
+                pass  # Column might already exist
+        
         conn.commit()
         conn.close()
     
@@ -81,20 +96,27 @@ class Database:
         cursor = conn.cursor()
         
         try:
+            # Check if product already exists for this user
             cursor.execute('''
-                INSERT OR REPLACE INTO products (user_id, product_url, product_id, product_name)
+                SELECT id FROM products WHERE user_id = ? AND product_url = ?
+            ''', (user_id, product_url))
+            existing = cursor.fetchone()
+            
+            if existing:
+                # Product already exists, return existing ID
+                return existing[0]
+            
+            # Insert new product
+            cursor.execute('''
+                INSERT INTO products (user_id, product_url, product_id, product_name)
                 VALUES (?, ?, ?, ?)
             ''', (user_id, product_url, product_id, product_name))
             conn.commit()
             product_db_id = cursor.lastrowid
             return product_db_id
-        except sqlite3.IntegrityError:
-            # Product already exists for this user
-            cursor.execute('''
-                SELECT id FROM products WHERE user_id = ? AND product_url = ?
-            ''', (user_id, product_url))
-            result = cursor.fetchone()
-            return result[0] if result else None
+        except Exception as e:
+            print(f"Error adding product: {e}")
+            return None
         finally:
             conn.close()
     
@@ -429,6 +451,34 @@ class Database:
         
         conn.commit()
         conn.close()
+    
+    def reset_today_notifications(self):
+        """Reset all notifications for today (allow re-notification today)"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        
+        # Delete notifications sent today
+        cursor.execute('''
+            DELETE FROM product_notifications
+            WHERE DATE(notified_at) = DATE('now')
+        ''')
+        
+        deleted = cursor.rowcount
+        conn.commit()
+        conn.close()
+        return deleted
+    
+    def reset_all_notifications(self):
+        """Reset all notifications (clear all notification history)"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute('DELETE FROM product_notifications')
+        
+        deleted = cursor.rowcount
+        conn.commit()
+        conn.close()
+        return deleted
     
     def delete_product(self, user_id: int, product_id: int) -> bool:
         """Delete a product from monitoring"""

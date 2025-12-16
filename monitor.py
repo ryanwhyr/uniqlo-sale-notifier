@@ -41,7 +41,10 @@ class ProductMonitor:
             
             # Get store info (using default store for now)
             store_info = self.api.get_store_info("113757")
-            store_name = store_info.get('name', 'Uniqlo') if store_info else 'Uniqlo'
+            if store_info and isinstance(store_info, dict):
+                store_name = store_info.get('name', 'Uniqlo')
+            else:
+                store_name = 'Uniqlo'
             
             # Parse product variants
             variants = self.api.parse_product_data(product_data, store_name)
@@ -161,8 +164,11 @@ class ProductMonitor:
             
             # Collect all sizes on sale (use size_name if available, fallback to size_code)
             sizes_on_sale = [v.get('size_name', v.get('size_code', '')) for v in sale_variants]
-            # Sort by size order: XS, S, M, L, XL, XXL, etc.
-            size_order = {'XS': 0, 'S': 1, 'M': 2, 'L': 3, 'XL': 4, 'XXL': 5, 'XXXL': 6}
+            # Sort by size order: XXS, XS, S, M, L, XL, XXL, XXXL, etc.
+            size_order = {
+                'FREE SIZE': -1, 'XXS': 0, 'XS': 1, 'S': 2, 'M': 3, 
+                'L': 4, 'XL': 5, 'XXL': 6, 'XXXL': 7, '4XL': 8, '5XL': 9
+            }
             sorted_sizes = sorted(set(sizes_on_sale), key=lambda x: size_order.get(x.upper(), 99))
             sizes_text = ", ".join(sorted_sizes)
             

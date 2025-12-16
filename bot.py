@@ -303,17 +303,41 @@ async def check_products(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Jika ada produk yang sale, Anda akan menerima notifikasi."
     )
 
+async def reset_notifications(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Reset notifications for today (allow re-notification)"""
+    user_id = update.message.from_user.id
+    
+    # Reset notifications for today
+    deleted = db.reset_today_notifications()
+    
+    await update.message.reply_text(
+        f"✅ **Notifikasi hari ini telah direset!**\n\n"
+        f"🗑️ {deleted} notifikasi dihapus.\n"
+        f"🔔 Bot akan mengirim notifikasi lagi jika produk sale."
+    )
+
+# Global flag to prevent duplicate startup notifications
+_startup_notification_sent = False
+
 async def send_startup_notification(application):
-    """Send startup notification to all users with monitored products"""
+    """Send startup notification to all users with monitored products and check products immediately"""
+    global _startup_notification_sent
+    
+    # Prevent duplicate notifications if function is called multiple times
+    if _startup_notification_sent:
+        print("Startup notification already sent, skipping...")
+        return
+    
     try:
         # Get all unique users who have products
         all_products = db.get_all_products()
         
         if not all_products:
             print("Tidak ada produk yang dipantau. Bot siap menerima produk baru.")
+            _startup_notification_sent = True
             return
         
-        # Group products by user_id
+        # Group products by user_id (ensure unique users)
         user_products = {}
         for product in all_products:
             user_id = product['user_id']
@@ -323,9 +347,18 @@ async def send_startup_notification(application):
         
         bot = application.bot
         
-        # Send notification to each user
+        # Send notification to each user ONCE and check products
         for user_id, products in user_products.items():
             try:
+                # Remove duplicates by product_id
+                unique_products = {}
+                for product in products:
+                    prod_id = product.get('id')
+                    if prod_id and prod_id not in unique_products:
+                        unique_products[prod_id] = product
+                
+                products = list(unique_products.values())
+                
                 product_list = ""
                 for i, product in enumerate(products, 1):
                     product_name = product.get('product_name', 'Produk Tanpa Nama')
@@ -346,16 +379,27 @@ async def send_startup_notification(application):
                     parse_mode=ParseMode.MARKDOWN
                 )
                 
-                # Small delay between messages
+                # Immediately check all products for this user
+                print(f"Checking {len(products)} products for user {user_id}...")
+                for product in products:
+                    try:
+                        await monitor.check_product(product['id'], user_id, bot)
+                        await asyncio.sleep(1)  # Small delay between checks
+                    except Exception as e:
+                        print(f"Error checking product {product['id']}: {e}")
+                
+                # Small delay between users
                 await asyncio.sleep(0.5)
                 
             except Exception as e:
                 print(f"Error sending startup notification to user {user_id}: {e}")
         
-        print(f"Startup notification sent to {len(user_products)} user(s)")
+        _startup_notification_sent = True
+        print(f"Startup notification sent and products checked for {len(user_products)} user(s)")
         
     except Exception as e:
         print(f"Error in send_startup_notification: {e}")
+        _startup_notification_sent = True  # Set flag even on error to prevent retry loops
 
 def main():
     """Start the bot."""
@@ -371,6 +415,7 @@ def main():
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("list", list_products))
     application.add_handler(CommandHandler("check", check_products))
+    application.add_handler(CommandHandler("reset", reset_notifications))
     application.add_handler(CommandHandler("cancel", cancel_command))
     application.add_handler(CallbackQueryHandler(button_handler))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))

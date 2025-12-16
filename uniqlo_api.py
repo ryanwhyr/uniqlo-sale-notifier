@@ -76,6 +76,21 @@ class UniqloAPI:
         if not product_data:
             return variants
         
+        # Mapping displayCode to size name
+        SIZE_CODE_MAP = {
+            '00': 'FREE SIZE',
+            '001': 'XXS',
+            '002': 'XS',
+            '003': 'S',
+            '004': 'M',
+            '005': 'L',
+            '006': 'XL',
+            '007': 'XXL',
+            '008': 'XXXL',
+            '009': '4XL',
+            '010': '5XL',
+        }
+        
         l2s = product_data.get('l2s', [])
         prices = product_data.get('prices', {})
         stocks = product_data.get('stocks', {})
@@ -84,7 +99,13 @@ class UniqloAPI:
             l2_id = l2.get('l2Id')
             size_obj = l2.get('size', {})
             size_code = size_obj.get('displayCode', '')
-            size_name = size_obj.get('name', size_code)  # Use name if available, fallback to code
+            # Try multiple fields to get size name
+            size_name = (
+                size_obj.get('name') or 
+                size_obj.get('displayName') or 
+                size_obj.get('label') or 
+                SIZE_CODE_MAP.get(size_code, size_code)
+            )
             color_code = l2.get('color', {}).get('displayCode', '')
             is_on_sale = l2.get('sales', False)
             
