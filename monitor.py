@@ -159,9 +159,12 @@ class ProductMonitor:
             discount = base_price - promo_price
             discount_percent = int((discount / base_price) * 100)
             
-            # Collect all sizes on sale
-            sizes_on_sale = [v['size_code'] for v in sale_variants]
-            sizes_text = ", ".join(sorted(set(sizes_on_sale)))
+            # Collect all sizes on sale (use size_name if available, fallback to size_code)
+            sizes_on_sale = [v.get('size_name', v.get('size_code', '')) for v in sale_variants]
+            # Sort by size order: XS, S, M, L, XL, XXL, etc.
+            size_order = {'XS': 0, 'S': 1, 'M': 2, 'L': 3, 'XL': 4, 'XXL': 5, 'XXXL': 6}
+            sorted_sizes = sorted(set(sizes_on_sale), key=lambda x: size_order.get(x.upper(), 99))
+            sizes_text = ", ".join(sorted_sizes)
             
             message = (
                 "🎉 **PRODUK SEDANG SALE!**\n\n"

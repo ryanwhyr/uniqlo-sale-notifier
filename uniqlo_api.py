@@ -82,7 +82,9 @@ class UniqloAPI:
         
         for l2 in l2s:
             l2_id = l2.get('l2Id')
-            size_code = l2.get('size', {}).get('displayCode', '')
+            size_obj = l2.get('size', {})
+            size_code = size_obj.get('displayCode', '')
+            size_name = size_obj.get('name', size_code)  # Use name if available, fallback to code
             color_code = l2.get('color', {}).get('displayCode', '')
             is_on_sale = l2.get('sales', False)
             
@@ -98,6 +100,7 @@ class UniqloAPI:
                 variants.append({
                     'l2_id': l2_id,
                     'size_code': size_code,
+                    'size_name': size_name,  # Add size name (S, M, L, XL)
                     'color_code': color_code,
                     'base_price': base_price,
                     'promo_price': promo_price,
