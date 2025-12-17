@@ -434,27 +434,14 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 parse_mode=ParseMode.MARKDOWN
             )
             
-            # Do initial check (this will send notification if product is already on sale or out of stock)
+            # Do initial check (monitor.py will send notification if product is on sale or out of stock)
             try:
                 print(f"[DEBUG] Running initial check for product {db_id}...")
                 result = await monitor.check_product(db_id, user_id, context.bot)
                 print(f"[DEBUG] Initial check result: {result}")
                 
-                # Check if product is out of stock
-                if result and isinstance(result, dict) and result.get('status') == 'out_of_stock':
-                    print(f"[DEBUG] Product is out of stock, sending notification...")
-                    await update.message.reply_text(
-                        f"⚠️ **PRODUK TIDAK TERSEDIA**\n\n"
-                        f"📦 **{product_name}**\n\n"
-                        f"❌ Produk saat ini tidak tersedia di semua toko yang dipantau.\n"
-                        f"🔔 Bot akan terus memantau dan mengirim notifikasi saat:\n"
-                        f"   • Produk kembali tersedia\n"
-                        f"   • Produk sedang sale\n\n"
-                        f"⏰ {datetime.now().strftime('%d/%m/%Y %H:%M')}",
-                        parse_mode=ParseMode.MARKDOWN
-                    )
-                else:
-                    print(f"[DEBUG] Product has stock or is on sale")
+                # Note: Notification is already sent by monitor.py for both sale and out-of-stock cases
+                # No need to send duplicate notification here
                 
                 await asyncio.sleep(1)  # Small delay to ensure notification is sent
             except Exception as e:
