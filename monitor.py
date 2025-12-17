@@ -245,12 +245,43 @@ class ProductMonitor:
                 
                 # Collect sizes for this store
                 sizes_on_sale = [v.get('size_name', v.get('size_code', '')) for v in variants]
-                # Sort by size order
-                size_order = {
-                    'FREE SIZE': -1, 'XXS': 0, 'XS': 1, 'S': 2, 'M': 3, 
-                    'L': 4, 'XL': 5, 'XXL': 6, 'XXXL': 7, '4XL': 8, '5XL': 9
-                }
-                sorted_sizes = sorted(set(sizes_on_sale), key=lambda x: size_order.get(x.upper(), 99))
+                
+                # Smart size sorting function
+                def sort_size(size_str):
+                    # Standard sizes
+                    size_order = {
+                        'FREE SIZE': -1, 'XXS': 0, 'XS': 1, 'S': 2, 'M': 3, 
+                        'L': 4, 'XL': 5, 'XXL': 6, 'XXXL': 7, '4XL': 8, '5XL': 9
+                    }
+                    
+                    size_upper = size_str.upper()
+                    
+                    # If it's a standard size, use the predefined order
+                    if size_upper in size_order:
+                        return (0, size_order[size_upper])
+                    
+                    # If it's an inch size (e.g., 27", 28", etc.)
+                    if '"' in size_str or 'INCH' in size_upper:
+                        import re
+                        match = re.search(r'(\d+)', size_str)
+                        if match:
+                            return (1, int(match.group(1)))
+                    
+                    # If it's a cm size (e.g., 100cm, 110cm, etc.)
+                    if 'CM' in size_upper:
+                        import re
+                        match = re.search(r'(\d+)', size_str)
+                        if match:
+                            return (2, int(match.group(1)))
+                    
+                    # If it's a pure number (e.g., 027, 028, etc.)
+                    if size_str.isdigit():
+                        return (3, int(size_str))
+                    
+                    # Default: alphabetical
+                    return (99, size_str)
+                
+                sorted_sizes = sorted(set(sizes_on_sale), key=sort_size)
                 sizes_text = ", ".join(sorted_sizes)
                 
                 # Get price for this store

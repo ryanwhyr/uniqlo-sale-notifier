@@ -144,8 +144,9 @@ class UniqloAPI:
         if not product_data:
             return variants
         
-        # Mapping displayCode to size name
+        # Mapping displayCode/sizeCode to size name
         SIZE_CODE_MAP = {
+            # Standard sizes
             '00': 'FREE SIZE',
             '001': 'XXS',
             '002': 'XS',
@@ -157,6 +158,29 @@ class UniqloAPI:
             '008': 'XXXL',
             '009': '4XL',
             '010': '5XL',
+            # Inch sizes (pants/jeans)
+            '027': '27"',
+            '028': '28"',
+            '029': '29"',
+            '030': '30"',
+            '031': '31"',
+            '032': '32"',
+            '033': '33"',
+            '034': '34"',
+            '035': '35"',
+            '036': '36"',
+            '037': '37"',
+            '038': '38"',
+            '040': '40"',
+            '042': '42"',
+            # Kids sizes
+            '100': '100cm',
+            '110': '110cm',
+            '120': '120cm',
+            '130': '130cm',
+            '140': '140cm',
+            '150': '150cm',
+            '160': '160cm',
         }
         
         l2s = product_data.get('l2s', [])
@@ -166,7 +190,21 @@ class UniqloAPI:
         for l2 in l2s:
             l2_id = l2.get('l2Id')
             size_obj = l2.get('size', {})
-            size_code = size_obj.get('displayCode', '')
+            
+            # Get size code (prefer displayCode, fallback to sizeCode)
+            display_code = size_obj.get('displayCode', '')
+            full_size_code = size_obj.get('sizeCode', '')  # e.g., INS027
+            
+            # Extract numeric part from sizeCode if exists (e.g., INS027 → 027)
+            if full_size_code and not display_code:
+                # Extract last 3 digits from codes like INS027, INS028, etc.
+                import re
+                match = re.search(r'(\d{2,3})$', full_size_code)
+                if match:
+                    display_code = match.group(1)
+            
+            size_code = display_code or full_size_code
+            
             # Try multiple fields to get size name
             size_name = (
                 size_obj.get('name') or 
