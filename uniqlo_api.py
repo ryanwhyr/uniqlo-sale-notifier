@@ -15,31 +15,20 @@ class UniqloAPI:
             'X-Fr-Clientid': 'uq.id.web-spa'
         })
     
-    def extract_product_id_from_url(self, url: str, include_all_colors: bool = True) -> Optional[str]:
+    def extract_product_id_from_url(self, url: str) -> Optional[str]:
         """Extract product ID from Uniqlo product URL
         
-        Args:
-            url: Product URL
-            include_all_colors: If True, return base product ID (E478145) for all colors
-                              If False, return full product ID with color (E478145-000)
+        Returns full product ID with color code (e.g., E478145-000)
+        API requires full product ID format, does not support base ID alone
         """
         # Pattern: /id/id/products/{PRODUCT_ID}-{COLOR_CODE}/{SIZE_CODE}
         # Example: /id/id/products/E479678-000/00
-        pattern = r'/products/([A-Z0-9]+)-(\d{3})'
+        pattern = r'/products/([A-Z0-9]+-\d{3})'
         match = re.search(pattern, url)
         if match:
-            base_id = match.group(1)  # E479678
-            color_code = match.group(2)  # 000
-            
-            if include_all_colors:
-                # Return base ID to check all colors
-                print(f"[EXTRACT] Base product ID: {base_id} (will check ALL colors)")
-                return base_id
-            else:
-                # Return full ID with specific color
-                full_id = f"{base_id}-{color_code}"
-                print(f"[EXTRACT] Full product ID: {full_id} (color: {color_code})")
-                return full_id
+            product_id = match.group(1)  # E479678-000
+            print(f"[EXTRACT] Product ID: {product_id}")
+            return product_id
         return None
     
     def get_product_info(self, product_id: str, store_id: str = "113757") -> Optional[Dict]:
