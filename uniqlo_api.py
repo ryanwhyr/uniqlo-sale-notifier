@@ -49,6 +49,35 @@ class UniqloAPI:
             print(f"Error fetching product info: {e}")
             return None
     
+    def get_store_specific_stock(self, l2_id: str, store_id: str) -> Optional[str]:
+        """Get store-specific stock status for a variant (more accurate than general API)
+        Returns: 'IN_STOCK', 'LOW_STOCK', 'OUT_OF_STOCK', or None
+        """
+        try:
+            url = f"{self.base_url}/l2s/{l2_id}/stores"
+            params = {
+                'unit': 'km',
+                'priceGroup': '00',
+                'limit': '50',
+                'httpFailure': 'true'
+            }
+            
+            response = self.session.get(url, params=params, timeout=10)
+            response.raise_for_status()
+            data = response.json()
+            
+            if data.get('status') == 'ok' and 'result' in data:
+                stores = data['result'].get('stores', [])
+                # Find the specific store
+                for store in stores:
+                    if store.get('storeId') == store_id or store.get('g1ImsStoreId6') == store_id:
+                        stock_status = store.get('stockStatus', 'OUT_OF_STOCK')
+                        return stock_status
+            return None
+        except Exception as e:
+            print(f"[ERROR] Error fetching store-specific stock for l2={l2_id}, store={store_id}: {e}")
+            return None
+    
     def get_store_info(self, store_id: str) -> Optional[Dict]:
         """Get store information"""
         try:
