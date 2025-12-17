@@ -32,7 +32,10 @@ class ProductMonitor:
                 # Try to extract from URL
                 product_id = self.api.extract_product_id_from_url(product_url)
                 if not product_id:
+                    print(f"[ERROR] Cannot extract product ID from URL: {product_url}")
                     return
+            
+            print(f"[DEBUG] Checking product: {product_name} (ID: {product_id})")
             
             # Collect all variants from all stores
             all_variants = []
@@ -43,33 +46,55 @@ class ProductMonitor:
             if not user_store_ids:
                 user_store_ids = STORE_IDS  # Fallback to default stores
             
+            print(f"[DEBUG] Checking product {product_db_id} across {len(user_store_ids)} stores")
+            
             # Loop through all stores
             for store_id in user_store_ids:
-                # Get product data from API for this store
-                product_data = self.api.get_product_info(product_id, store_id)
-                if not product_data:
+                try:
+                    # Get product data from API for this store
+                    product_data = self.api.get_product_info(product_id, store_id)
+                    if not product_data:
+                        print(f"[DEBUG] No product data for store {store_id}")
+                        continue
+                    
+                    # Get store info
+                    store_info = self.api.get_store_info(store_id)
+                    if store_info and isinstance(store_info, dict):
+                        store_name = store_info.get('name', f'Store {store_id}')
+                    else:
+                        store_name = f'Store {store_id}'
+                except Exception as e:
+                    print(f"[ERROR] Failed to get data for store {store_id}: {e}")
                     continue
                 
-                # Get store info
-                store_info = self.api.get_store_info(store_id)
-                if store_info and isinstance(store_info, dict):
-                    store_name = store_info.get('name', f'Store {store_id}')
-                else:
-                    store_name = f'Store {store_id}'
-                
-                store_names[store_id] = store_name
-                
-                # Parse product variants for this store
-                variants = self.api.parse_product_data(product_data, store_name)
-                
-                # Add store_id to each variant
-                for variant in variants:
-                    variant['store_id'] = store_id
-                
-                all_variants.extend(variants)
-                
-                # Small delay between API calls
-                await asyncio.sleep(0.5)
+                    store_names[store_id] = store_name
+                    
+                    # Parse product variants for this store
+                    variants = self.api.parse_product_data(product_data, store_name)
+                    
+                    if not variants:
+                        print(f"[DEBUG] No variants found for store {store_id}")
+                        continue
+                    
+                    # Add store_id to each variant
+                    for variant in variants:
+                        variant['store_id'] = store_id
+                    
+                    all_variants.extend(variants)
+                    print(f"[DEBUG] Found {len(variants)} variants in store {store_id}")
+                    
+                    # Small delay between API calls
+                    await asyncio.sleep(0.5)
+                except Exception as e:
+                    print(f"[ERROR] Error processing store {store_id}: {e}")
+                    continue
+            
+            # Check if we found any variants
+            if not all_variants:
+                print(f"[DEBUG] No variants found for product {product_db_id} in any store")
+                return
+            
+            print(f"[DEBUG] Total variants found: {len(all_variants)}")
             
             # Check if product has any price history (to determine if it's a new product)
             has_history = self.db.has_price_history(product_db_id)
