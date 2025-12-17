@@ -630,14 +630,13 @@ def main():
     # Start monitoring task
     monitor.start_monitoring(application)
     
-    # Setup post_init hook for startup notification
+    # Setup post_init hook (startup notification disabled per user request)
     async def post_init(app: Application):
         """Run after bot is initialized"""
         await asyncio.sleep(1)  # Small delay to ensure bot is ready
         print("Bot sedang berjalan...")
-        print("Mengirim notifikasi startup ke semua user...")
-        await send_startup_notification(app)
         print("Bot siap menerima perintah!")
+        # Note: Startup notification disabled - notifications only sent when adding new products
     
     application.post_init = post_init
     
