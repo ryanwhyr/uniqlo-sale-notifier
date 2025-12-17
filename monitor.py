@@ -73,14 +73,37 @@ class ProductMonitor:
                         print(f"[DEBUG] No variants found for store {store_id}")
                         continue
                     
-                    # Add store_id to each variant
-                    # Note: Store-specific validation via /l2s/{l2_id}/stores endpoint is unreliable (returns 400 for many products)
-                    # We trust the API response with storeId parameter which already filters by store stock
+                    # Validate store-specific stock using /l2s/{l2_id}/stores endpoint (ACCURATE)
+                    # This endpoint matches website behavior and shows real offline store stock
+                    validated_variants = []
                     for variant in variants:
-                        variant['store_id'] = store_id
+                        l2_id = variant.get('l2_id')
+                        size_name = variant.get('size_name', 'Unknown')
+                        color_code = variant.get('color_code', '')
+                        
+                        # Try to get accurate store stock status
+                        store_stock_status = self.api.get_store_specific_stock(l2_id, store_id)
+                        
+                        if store_stock_status and store_stock_status in ['IN_STOCK', 'LOW_STOCK']:
+                            # Variant is actually available at this offline store
+                            variant['store_id'] = store_id
+                            variant['store_stock_status'] = store_stock_status
+                            validated_variants.append(variant)
+                            print(f"[VALIDATED] ✅ {size_name} {color_code} available at {store_name} ({store_stock_status})")
+                        elif store_stock_status == 'OUT_OF_STOCK':
+                            # Confirmed out of stock at this store
+                            print(f"[VALIDATED] ❌ {size_name} {color_code} OUT_OF_STOCK at {store_name}")
+                        else:
+                            # Endpoint failed (400 error) - fallback: trust API response with storeId
+                            print(f"[VALIDATED] ⚠️ {size_name} {color_code} - endpoint failed, trusting API response")
+                            variant['store_id'] = store_id
+                            validated_variants.append(variant)
+                        
+                        # Small delay to avoid rate limiting
+                        await asyncio.sleep(0.3)
                     
-                    all_variants.extend(variants)
-                    print(f"[DEBUG] Found {len(variants)} variants in store {store_id}")
+                    all_variants.extend(validated_variants)
+                    print(f"[DEBUG] Found {len(validated_variants)}/{len(variants)} variants actually in stock at store {store_id}")
                     
                     # Small delay between API calls
                     await asyncio.sleep(0.5)

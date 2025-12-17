@@ -55,8 +55,15 @@ class UniqloAPI:
             print(f"Error fetching product info: {e}")
             return None
     
-    def get_store_specific_stock(self, l2_id: str, store_id: str) -> Optional[str]:
-        """Get store-specific stock status for a variant (more accurate than general API)
+    def get_store_specific_stock(self, l2_id: str, store_id: str, keyword: str = None) -> Optional[str]:
+        """Get store-specific stock status for a variant using /l2s/{l2_id}/stores endpoint
+        This is the ACCURATE way to check offline store stock (matches website behavior)
+        
+        Args:
+            l2_id: Product variant ID
+            store_id: Store ID to check
+            keyword: Optional city keyword (e.g., 'surabaya') to narrow down results
+        
         Returns: 'IN_STOCK', 'LOW_STOCK', 'OUT_OF_STOCK', or None
         """
         try:
@@ -64,9 +71,13 @@ class UniqloAPI:
             params = {
                 'unit': 'km',
                 'priceGroup': '00',
-                'limit': '50',
+                'limit': '50',  # Get up to 50 stores
                 'httpFailure': 'true'
             }
+            
+            # Add keyword if provided (helps narrow down results)
+            if keyword:
+                params['keyword'] = keyword
             
             response = self.session.get(url, params=params, timeout=10)
             response.raise_for_status()
@@ -74,11 +85,18 @@ class UniqloAPI:
             
             if data.get('status') == 'ok' and 'result' in data:
                 stores = data['result'].get('stores', [])
+                print(f"[STORE_STOCK_CHECK] l2_id={l2_id}, found {len(stores)} stores in response")
+                
                 # Find the specific store
                 for store in stores:
-                    if store.get('storeId') == store_id or store.get('g1ImsStoreId6') == store_id:
+                    store_id_match = store.get('storeId') or store.get('g1ImsStoreId6')
+                    if store_id_match == store_id:
                         stock_status = store.get('stockStatus', 'OUT_OF_STOCK')
+                        store_name = store.get('storeName', f'Store {store_id}')
+                        print(f"[STORE_STOCK_CHECK] ✅ Found store {store_id} ({store_name}): stockStatus={stock_status}")
                         return stock_status
+                
+                print(f"[STORE_STOCK_CHECK] ❌ Store {store_id} not found in response")
             return None
         except Exception as e:
             print(f"[ERROR] Error fetching store-specific stock for l2={l2_id}, store={store_id}: {e}")
