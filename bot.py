@@ -434,9 +434,23 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 parse_mode=ParseMode.MARKDOWN
             )
             
-            # Do initial check (this will send notification if product is already on sale)
+            # Do initial check (this will send notification if product is already on sale or out of stock)
             try:
-                await monitor.check_product(db_id, user_id, context.bot)
+                result = await monitor.check_product(db_id, user_id, context.bot)
+                
+                # Check if product is out of stock
+                if result and isinstance(result, dict) and result.get('status') == 'out_of_stock':
+                    await update.message.reply_text(
+                        f"⚠️ **PRODUK TIDAK TERSEDIA**\n\n"
+                        f"📦 **{product_name}**\n\n"
+                        f"❌ Produk saat ini tidak tersedia di semua toko yang dipantau.\n"
+                        f"🔔 Bot akan terus memantau dan mengirim notifikasi saat:\n"
+                        f"   • Produk kembali tersedia\n"
+                        f"   • Produk sedang sale\n\n"
+                        f"⏰ {datetime.now().strftime('%d/%m/%Y %H:%M')}",
+                        parse_mode=ParseMode.MARKDOWN
+                    )
+                
                 await asyncio.sleep(1)  # Small delay to ensure notification is sent
             except Exception as e:
                 print(f"Error in initial check: {e}")
