@@ -69,6 +69,45 @@ class UniqloAPI:
             print(f"Error fetching store info: {e}")
             return None
     
+    def search_stores(self, city: str = None) -> List[Dict]:
+        """Search for stores, optionally filter by city"""
+        try:
+            url = f"{self.base_url}/stores"
+            params = {
+                'includeClosed': 'false',
+                'httpFailure': 'true'
+            }
+            
+            response = self.session.get(url, params=params, timeout=10)
+            response.raise_for_status()
+            data = response.json()
+            
+            if data.get('status') == 'ok' and 'result' in data:
+                stores = data['result']
+                
+                # If city filter is provided, filter stores by city name
+                if city:
+                    city_lower = city.lower()
+                    filtered_stores = []
+                    for store in stores:
+                        # Check various fields that might contain city info
+                        store_city = store.get('city', '').lower()
+                        store_name = store.get('name', '').lower()
+                        store_address = store.get('address', '').lower()
+                        
+                        if (city_lower in store_city or 
+                            city_lower in store_name or 
+                            city_lower in store_address):
+                            filtered_stores.append(store)
+                    
+                    return filtered_stores
+                
+                return stores
+            return []
+        except Exception as e:
+            print(f"Error searching stores: {e}")
+            return []
+    
     def parse_product_data(self, product_data: Dict, store_name: str = "Uniqlo") -> List[Dict]:
         """Parse product data into a list of variants with prices"""
         variants = []

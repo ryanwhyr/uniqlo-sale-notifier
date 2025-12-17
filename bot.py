@@ -31,7 +31,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Send a message when the command /start is issued."""
     keyboard = [
         [InlineKeyboardButton("➕ Tambah Produk", callback_data='add_product')],
-        [InlineKeyboardButton("📋 Daftar Produk", callback_data='list_products')]
+        [InlineKeyboardButton("📋 Daftar Produk", callback_data='list_products')],
+        [InlineKeyboardButton("🏪 Kelola Toko", callback_data='manage_stores')]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     
@@ -41,6 +42,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Fitur:\n"
         "• ➕ Tambah produk untuk dipantau\n"
         "• 📋 Lihat daftar produk yang dipantau\n"
+        "• 🏪 Kelola toko yang ingin dipantau\n"
         "• 🔔 Notifikasi otomatis saat produk sale\n"
         "• 📊 Info lengkap: nama, size, toko, harga sebelum & sesudah sale\n\n"
         "Pilih menu di bawah:"
@@ -55,11 +57,13 @@ async def cancel_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Cancel current operation and return to main menu."""
     # Clear any waiting state
     context.user_data['waiting_for_url'] = False
+    context.user_data['waiting_for_city'] = False
     
     # Show main menu
     keyboard = [
         [InlineKeyboardButton("➕ Tambah Produk", callback_data='add_product')],
-        [InlineKeyboardButton("📋 Daftar Produk", callback_data='list_products')]
+        [InlineKeyboardButton("📋 Daftar Produk", callback_data='list_products')],
+        [InlineKeyboardButton("🏪 Kelola Toko", callback_data='manage_stores')]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     
@@ -124,7 +128,8 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif query.data == 'back_to_menu':
         keyboard = [
             [InlineKeyboardButton("➕ Tambah Produk", callback_data='add_product')],
-            [InlineKeyboardButton("📋 Daftar Produk", callback_data='list_products')]
+            [InlineKeyboardButton("📋 Daftar Produk", callback_data='list_products')],
+            [InlineKeyboardButton("🏪 Kelola Toko", callback_data='manage_stores')]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         
@@ -133,6 +138,139 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=reply_markup,
             parse_mode=ParseMode.MARKDOWN
         )
+    
+    elif query.data == 'manage_stores':
+        user_stores = db.get_user_stores(user_id)
+        
+        keyboard = [
+            [InlineKeyboardButton("🔍 Cari Toko", callback_data='search_stores')],
+            [InlineKeyboardButton("📋 Toko Saya", callback_data='list_my_stores')],
+            [InlineKeyboardButton("🔙 Kembali", callback_data='back_to_menu')]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        store_count = len(user_stores)
+        await query.edit_message_text(
+            "🏪 **Kelola Toko**\n\n"
+            f"Anda memantau **{store_count} toko**.\n\n"
+            "Pilih menu:",
+            reply_markup=reply_markup,
+            parse_mode=ParseMode.MARKDOWN
+        )
+    
+    elif query.data == 'search_stores':
+        await query.edit_message_text(
+            "🔍 **Cari Toko**\n\n"
+            "Kirim nama kota untuk mencari toko Uniqlo di kota tersebut.\n\n"
+            "Contoh: `Surabaya`\n\n"
+            "Atau kirim /cancel untuk membatalkan.",
+            parse_mode=ParseMode.MARKDOWN
+        )
+        context.user_data['waiting_for_city'] = True
+    
+    elif query.data == 'list_my_stores':
+        user_stores = db.get_user_stores(user_id)
+        
+        if not user_stores:
+            keyboard = [
+                [InlineKeyboardButton("🔍 Cari Toko", callback_data='search_stores')],
+                [InlineKeyboardButton("🔙 Kembali", callback_data='manage_stores')]
+            ]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            
+            await query.edit_message_text(
+                "📋 **Toko Saya**\n\n"
+                "Anda belum menambahkan toko untuk dipantau.\n\n"
+                "Klik 'Cari Toko' untuk menambahkan.",
+                reply_markup=reply_markup,
+                parse_mode=ParseMode.MARKDOWN
+            )
+        else:
+            text = "📋 **Toko yang Dipantau**\n\n"
+            keyboard = []
+            
+            for i, store in enumerate(user_stores, 1):
+                store_name = store.get('store_name', f"Store {store['store_id']}")
+                text += f"{i}. {store_name}\n   ID: `{store['store_id']}`\n\n"
+                keyboard.append([InlineKeyboardButton(
+                    f"❌ Hapus {i}",
+                    callback_data=f"remove_store_{store['store_id']}"
+                )])
+            
+            keyboard.append([InlineKeyboardButton("🔙 Kembali", callback_data='manage_stores')])
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            
+            await query.edit_message_text(
+                text,
+                reply_markup=reply_markup,
+                parse_mode=ParseMode.MARKDOWN
+            )
+    
+    elif query.data.startswith('add_store_'):
+        store_id = query.data.replace('add_store_', '')
+        
+        # Get store info
+        store_info = api.get_store_info(store_id)
+        store_name = store_info.get('name', f'Store {store_id}') if store_info else f'Store {store_id}'
+        
+        # Add to user's stores
+        added = db.add_user_store(user_id, store_id, store_name)
+        
+        if added:
+            await query.answer("✅ Toko berhasil ditambahkan!", show_alert=True)
+            await query.edit_message_text(
+                f"✅ **Toko Berhasil Ditambahkan!**\n\n"
+                f"🏪 {store_name}\n"
+                f"🆔 Store ID: `{store_id}`\n\n"
+                f"Bot akan memantau produk di toko ini.",
+                parse_mode=ParseMode.MARKDOWN
+            )
+        else:
+            await query.answer("⚠️ Toko sudah ada dalam daftar!", show_alert=True)
+    
+    elif query.data.startswith('remove_store_'):
+        store_id = query.data.replace('remove_store_', '')
+        deleted = db.delete_user_store(user_id, store_id)
+        
+        if deleted:
+            await query.answer("✅ Toko berhasil dihapus!", show_alert=True)
+            # Refresh list
+            user_stores = db.get_user_stores(user_id)
+            
+            if not user_stores:
+                keyboard = [
+                    [InlineKeyboardButton("🔍 Cari Toko", callback_data='search_stores')],
+                    [InlineKeyboardButton("🔙 Kembali", callback_data='manage_stores')]
+                ]
+                reply_markup = InlineKeyboardMarkup(keyboard)
+                
+                await query.edit_message_text(
+                    "📋 **Toko Saya**\n\n"
+                    "Anda belum menambahkan toko untuk dipantau.",
+                    reply_markup=reply_markup,
+                    parse_mode=ParseMode.MARKDOWN
+                )
+            else:
+                # Rebuild list
+                text = "📋 **Toko yang Dipantau**\n\n"
+                keyboard = []
+                
+                for i, store in enumerate(user_stores, 1):
+                    store_name = store.get('store_name', f"Store {store['store_id']}")
+                    text += f"{i}. {store_name}\n   ID: `{store['store_id']}`\n\n"
+                    keyboard.append([InlineKeyboardButton(
+                        f"❌ Hapus {i}",
+                        callback_data=f"remove_store_{store['store_id']}"
+                    )])
+                
+                keyboard.append([InlineKeyboardButton("🔙 Kembali", callback_data='manage_stores')])
+                reply_markup = InlineKeyboardMarkup(keyboard)
+                
+                await query.edit_message_text(
+                    text,
+                    reply_markup=reply_markup,
+                    parse_mode=ParseMode.MARKDOWN
+                )
     
     elif query.data.startswith('delete_'):
         product_id = int(query.data.split('_')[1])
@@ -174,6 +312,73 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.message.from_user.id
     text = update.message.text
     
+    # Check if user is waiting to search stores by city
+    if context.user_data.get('waiting_for_city'):
+        if text.lower() == '/cancel':
+            context.user_data['waiting_for_city'] = False
+            keyboard = [
+                [InlineKeyboardButton("➕ Tambah Produk", callback_data='add_product')],
+                [InlineKeyboardButton("📋 Daftar Produk", callback_data='list_products')],
+                [InlineKeyboardButton("🏪 Kelola Toko", callback_data='manage_stores')]
+            ]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            await update.message.reply_text(
+                "❌ Pencarian dibatalkan.\n\nPilih menu di bawah:",
+                reply_markup=reply_markup
+            )
+            return
+        
+        # Search stores by city
+        await update.message.reply_text(
+            f"🔍 Mencari toko Uniqlo di **{text}**...\n"
+            "Mohon tunggu sebentar...",
+            parse_mode=ParseMode.MARKDOWN
+        )
+        
+        stores = api.search_stores(text)
+        context.user_data['waiting_for_city'] = False
+        
+        if not stores:
+            keyboard = [
+                [InlineKeyboardButton("🔍 Cari Lagi", callback_data='search_stores')],
+                [InlineKeyboardButton("🔙 Kembali", callback_data='manage_stores')]
+            ]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            
+            await update.message.reply_text(
+                f"❌ Tidak ditemukan toko di **{text}**.\n\n"
+                "Coba dengan nama kota lain.",
+                reply_markup=reply_markup,
+                parse_mode=ParseMode.MARKDOWN
+            )
+        else:
+            message_text = f"🏪 **Ditemukan {len(stores)} toko di {text}**\n\n"
+            keyboard = []
+            
+            for i, store in enumerate(stores, 1):
+                store_id = store.get('id', '')
+                store_name = store.get('name', f'Store {store_id}')
+                store_address = store.get('address', 'No address')
+                
+                message_text += f"{i}. **{store_name}**\n"
+                message_text += f"   📍 {store_address}\n"
+                message_text += f"   🆔 `{store_id}`\n\n"
+                
+                keyboard.append([InlineKeyboardButton(
+                    f"➕ Tambah {i}",
+                    callback_data=f"add_store_{store_id}"
+                )])
+            
+            keyboard.append([InlineKeyboardButton("🔙 Kembali", callback_data='manage_stores')])
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            
+            await update.message.reply_text(
+                message_text,
+                reply_markup=reply_markup,
+                parse_mode=ParseMode.MARKDOWN
+            )
+        return
+    
     # Check if user is waiting to add a product
     if context.user_data.get('waiting_for_url'):
         if text.lower() == '/cancel':
@@ -181,7 +386,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             # Return to main menu
             keyboard = [
                 [InlineKeyboardButton("➕ Tambah Produk", callback_data='add_product')],
-                [InlineKeyboardButton("📋 Daftar Produk", callback_data='list_products')]
+                [InlineKeyboardButton("📋 Daftar Produk", callback_data='list_products')],
+                [InlineKeyboardButton("🏪 Kelola Toko", callback_data='manage_stores')]
             ]
             reply_markup = InlineKeyboardMarkup(keyboard)
             await update.message.reply_text(
@@ -246,7 +452,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Regular message - show menu
         keyboard = [
             [InlineKeyboardButton("➕ Tambah Produk", callback_data='add_product')],
-            [InlineKeyboardButton("📋 Daftar Produk", callback_data='list_products')]
+            [InlineKeyboardButton("📋 Daftar Produk", callback_data='list_products')],
+            [InlineKeyboardButton("🏪 Kelola Toko", callback_data='manage_stores')]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         

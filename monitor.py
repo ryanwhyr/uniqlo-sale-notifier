@@ -38,8 +38,13 @@ class ProductMonitor:
             all_variants = []
             store_names = {}  # Map store_id to store_name
             
+            # Get user's store list (if empty, use default from config)
+            user_store_ids = self.db.get_all_user_store_ids(user_id)
+            if not user_store_ids:
+                user_store_ids = STORE_IDS  # Fallback to default stores
+            
             # Loop through all stores
-            for store_id in STORE_IDS:
+            for store_id in user_store_ids:
                 # Get product data from API for this store
                 product_data = self.api.get_product_info(product_id, store_id)
                 if not product_data:

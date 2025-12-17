@@ -72,6 +72,18 @@ class Database:
             )
         ''')
         
+        # User stores table (stores that user wants to monitor)
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS user_stores (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                store_id TEXT NOT NULL,
+                store_name TEXT,
+                added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(user_id, store_id)
+            )
+        ''')
+        
         # Migrate existing table if columns don't exist
         try:
             cursor.execute('SELECT consecutive_days FROM product_notifications LIMIT 1')
@@ -493,4 +505,65 @@ class Database:
         conn.commit()
         conn.close()
         return deleted
+    
+    # User stores management
+    def add_user_store(self, user_id: int, store_id: str, store_name: str = None) -> bool:
+        """Add a store to user's monitoring list"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        
+        try:
+            cursor.execute('''
+                INSERT OR IGNORE INTO user_stores (user_id, store_id, store_name)
+                VALUES (?, ?, ?)
+            ''', (user_id, store_id, store_name))
+            conn.commit()
+            return cursor.rowcount > 0
+        except Exception as e:
+            print(f"Error adding user store: {e}")
+            return False
+        finally:
+            conn.close()
+    
+    def get_user_stores(self, user_id: int) -> List[Dict]:
+        """Get all stores monitored by a user"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute('''
+            SELECT store_id, store_name, added_at
+            FROM user_stores
+            WHERE user_id = ?
+            ORDER BY added_at DESC
+        ''', (user_id,))
+        
+        stores = []
+        for row in cursor.fetchall():
+            stores.append({
+                'store_id': row[0],
+                'store_name': row[1],
+                'added_at': row[2]
+            })
+        
+        conn.close()
+        return stores
+    
+    def delete_user_store(self, user_id: int, store_id: str) -> bool:
+        """Remove a store from user's monitoring list"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute('''
+            DELETE FROM user_stores WHERE user_id = ? AND store_id = ?
+        ''', (user_id, store_id))
+        
+        deleted = cursor.rowcount > 0
+        conn.commit()
+        conn.close()
+        return deleted
+    
+    def get_all_user_store_ids(self, user_id: int) -> List[str]:
+        """Get list of store IDs for a user"""
+        stores = self.get_user_stores(user_id)
+        return [store['store_id'] for store in stores]
 
