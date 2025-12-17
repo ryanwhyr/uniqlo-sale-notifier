@@ -63,10 +63,7 @@ class ProductMonitor:
                         store_name = store_info.get('name', f'Store {store_id}')
                     else:
                         store_name = f'Store {store_id}'
-                except Exception as e:
-                    print(f"[ERROR] Failed to get data for store {store_id}: {e}")
-                    continue
-                
+                    
                     store_names[store_id] = store_name
                     
                     # Parse product variants for this store
@@ -89,10 +86,33 @@ class ProductMonitor:
                     print(f"[ERROR] Error processing store {store_id}: {e}")
                     continue
             
-            # Check if we found any variants
+            # Check if we found any variants (in stock)
             if not all_variants:
                 print(f"[DEBUG] No variants found for product {product_db_id} in any store")
-                return
+                
+                # Send out of stock notification if bot is provided
+                if bot:
+                    print(f"[DEBUG] Sending out of stock notification for product {product_db_id}")
+                    try:
+                        message = (
+                            f"⚠️ **PRODUK TIDAK TERSEDIA**\n\n"
+                            f"📦 **{product_name}**\n\n"
+                            f"❌ Produk saat ini tidak tersedia di semua toko yang dipantau.\n"
+                            f"🔔 Bot akan terus memantau dan mengirim notifikasi saat:\n"
+                            f"   • Produk kembali tersedia\n"
+                            f"   • Produk sedang sale\n\n"
+                            f"⏰ {datetime.now().strftime('%d/%m/%Y %H:%M')}"
+                        )
+                        await bot.send_message(
+                            chat_id=user_id,
+                            text=message,
+                            parse_mode=ParseMode.MARKDOWN
+                        )
+                        print(f"[DEBUG] Out of stock notification sent successfully")
+                    except Exception as e:
+                        print(f"[ERROR] Failed to send out of stock notification: {e}")
+                
+                return {"status": "out_of_stock", "message": "Produk tidak tersedia di semua toko"}
             
             print(f"[DEBUG] Total variants found: {len(all_variants)}")
             
@@ -189,9 +209,13 @@ class ProductMonitor:
                         print(f"[DEBUG] ❌ Not sending notification: {reason}")
             else:
                 print(f"[DEBUG] Product {product_db_id}: No variants on sale in any store")
+            
+            # Return success status
+            return {"status": "success", "has_sale": total_sale_variants > 0}
         
         except Exception as e:
             print(f"Error checking product {product_db_id}: {e}")
+            return {"status": "error", "message": str(e)}
     
     async def send_sale_notification(
         self,
