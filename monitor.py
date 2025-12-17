@@ -93,14 +93,16 @@ class ProductMonitor:
                 # Check online availability
                 online_check = self.api.check_online_availability(product_id)
                 online_available = online_check.get('available', False)
+                online_sizes = online_check.get('sizes', [])
                 
                 # Send out of stock notification if bot is provided
                 if bot:
                     print(f"[DEBUG] Sending out of stock notification for product {product_db_id}")
                     try:
                         online_status = ""
-                        if online_available:
-                            online_status = f"🌐 **Tersedia di Online Store** ✅\n"
+                        if online_available and online_sizes:
+                            sizes_str = ", ".join(sorted(set(online_sizes)))
+                            online_status = f"🌐 **Tersedia di Online Store:** {sizes_str} ✅\n"
                         else:
                             online_status = f"🌐 **Tidak tersedia di Online Store** ❌\n"
                         
@@ -263,6 +265,7 @@ class ProductMonitor:
             # Check online availability
             online_check = self.api.check_online_availability(product_id)
             online_available = online_check.get('available', False)
+            online_sizes = online_check.get('sizes', [])
             
             # Build message
             message = (
@@ -278,9 +281,10 @@ class ProductMonitor:
             
             message += f"\n💸 **Diskon:** {format_price(discount)} ({discount_percent}%)\n\n"
             
-            # Add online availability status
-            if online_available:
-                message += "🌐 **Tersedia di Online Store** ✅\n\n"
+            # Add online availability status with sizes
+            if online_available and online_sizes:
+                sizes_str = ", ".join(sorted(set(online_sizes)))
+                message += f"🌐 **Tersedia di Online Store:** {sizes_str} ✅\n\n"
             else:
                 message += "🌐 **Tidak tersedia di Online Store** ❌\n\n"
             

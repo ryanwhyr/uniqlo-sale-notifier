@@ -70,7 +70,7 @@ class UniqloAPI:
             return None
     
     def check_online_availability(self, product_id: str) -> Dict:
-        """Check if product is available in online store (without specific store_id)"""
+        """Check if product is available in online store and return available sizes"""
         try:
             # Get product info without store_id to check general/online availability
             url = f"{self.base_url}/products/{product_id}"
@@ -85,14 +85,24 @@ class UniqloAPI:
             
             if data.get('status') != 'ok' or 'result' not in data:
                 print(f"[ONLINE_CHECK] Product not found in online store")
-                return {'available': False, 'reason': 'product_not_found'}
+                return {'available': False, 'reason': 'product_not_found', 'sizes': []}
             
             result = data['result']
             stocks = result.get('stocks', {})
+            l2s = result.get('l2s', [])
             print(f"[ONLINE_CHECK] Found {len(stocks)} variants in API response")
+            
+            # Map l2_id to size name
+            l2_to_size = {}
+            for l2 in l2s:
+                l2_id = l2.get('l2Id')
+                size_obj = l2.get('size', {})
+                size_name = size_obj.get('name') or size_obj.get('displayName') or size_obj.get('label', '')
+                l2_to_size[l2_id] = size_name
             
             # Check if any variant has online stock
             online_variants = []
+            online_sizes = []
             for l2_id, stock_info in stocks.items():
                 stock_status = stock_info.get('statusCode', '')
                 stock_quantity = stock_info.get('quantity', 0)
@@ -102,17 +112,20 @@ class UniqloAPI:
                 # Check if available online (either IN_STOCK or LOW_STOCK with quantity > 0)
                 if stock_quantity > 0 and stock_status in ['IN_STOCK', 'LOW_STOCK']:
                     online_variants.append(l2_id)
+                    size_name = l2_to_size.get(l2_id, 'Unknown')
+                    online_sizes.append(size_name)
             
-            print(f"[ONLINE_CHECK] Result: {len(online_variants)} variants available online")
+            print(f"[ONLINE_CHECK] Result: {len(online_variants)} variants available online - Sizes: {', '.join(online_sizes)}")
             
             return {
                 'available': len(online_variants) > 0,
                 'variant_count': len(online_variants),
+                'sizes': online_sizes,
                 'reason': 'available' if online_variants else 'out_of_stock'
             }
         except Exception as e:
             print(f"[ERROR] Error checking online availability: {e}")
-            return {'available': False, 'reason': 'error', 'error': str(e)}
+            return {'available': False, 'reason': 'error', 'error': str(e), 'sizes': []}
     
     def search_stores_by_product(self, l2_id: str, keyword: str = None, limit: int = 20) -> List[Dict]:
         """Search stores by product variant (l2_id) and optional keyword (city)"""
