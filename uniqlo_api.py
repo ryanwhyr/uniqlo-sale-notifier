@@ -221,9 +221,15 @@ class UniqloAPI:
             
             stock_info = stocks.get(l2_id, {})
             stock_status = stock_info.get('statusCode', '')
+            stock_quantity = stock_info.get('quantity', 0)  # Get actual stock quantity
             
-            # Only include variants that are in stock
-            if stock_status == 'IN_STOCK':
+            # Debug: Log stock info for troubleshooting
+            if l2_id and stock_info:
+                print(f"[STOCK_DEBUG] l2_id={l2_id}, status={stock_status}, quantity={stock_quantity}, size={size_name}")
+            
+            # Only include variants that are ACTUALLY in stock (status IN_STOCK AND quantity > 0)
+            # This prevents false positives where status is IN_STOCK but quantity is 0
+            if stock_status == 'IN_STOCK' and stock_quantity > 0:
                 variants.append({
                     'l2_id': l2_id,
                     'size_code': size_code,
@@ -233,7 +239,8 @@ class UniqloAPI:
                     'promo_price': promo_price,
                     'is_on_sale': is_on_sale,
                     'store_name': store_name,
-                    'stock_status': stock_status
+                    'stock_status': stock_status,
+                    'stock_quantity': stock_quantity
                 })
         
         return variants
