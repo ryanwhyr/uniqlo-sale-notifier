@@ -78,15 +78,18 @@ class UniqloAPI:
                 'httpFailure': 'true'
             }
             
+            print(f"[ONLINE_CHECK] Checking online availability for product {product_id}")
             response = self.session.get(url, params=params, timeout=10)
             response.raise_for_status()
             data = response.json()
             
             if data.get('status') != 'ok' or 'result' not in data:
+                print(f"[ONLINE_CHECK] Product not found in online store")
                 return {'available': False, 'reason': 'product_not_found'}
             
             result = data['result']
             stocks = result.get('stocks', {})
+            print(f"[ONLINE_CHECK] Found {len(stocks)} variants in API response")
             
             # Check if any variant has online stock
             online_variants = []
@@ -94,9 +97,13 @@ class UniqloAPI:
                 stock_status = stock_info.get('statusCode', '')
                 stock_quantity = stock_info.get('quantity', 0)
                 
+                print(f"[ONLINE_CHECK] l2_id={l2_id}, status={stock_status}, quantity={stock_quantity}")
+                
                 # Check if available online (either IN_STOCK or LOW_STOCK with quantity > 0)
                 if stock_quantity > 0 and stock_status in ['IN_STOCK', 'LOW_STOCK']:
                     online_variants.append(l2_id)
+            
+            print(f"[ONLINE_CHECK] Result: {len(online_variants)} variants available online")
             
             return {
                 'available': len(online_variants) > 0,
@@ -265,9 +272,10 @@ class UniqloAPI:
             if l2_id and stock_info:
                 print(f"[STOCK_DEBUG] l2_id={l2_id}, status={stock_status}, quantity={stock_quantity}, size={size_name}")
             
-            # Only include variants that are ACTUALLY in stock (status IN_STOCK AND quantity > 0)
-            # This prevents false positives where status is IN_STOCK but quantity is 0
-            if stock_status == 'IN_STOCK' and stock_quantity > 0:
+            # Include variants with actual stock (quantity > 0) and status IN_STOCK or LOW_STOCK
+            # LOW_STOCK with quantity > 0 means still available
+            # STOCK_OUT or quantity = 0 means not available
+            if stock_quantity > 0 and stock_status in ['IN_STOCK', 'LOW_STOCK']:
                 variants.append({
                     'l2_id': l2_id,
                     'size_code': size_code,
