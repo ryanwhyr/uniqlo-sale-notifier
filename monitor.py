@@ -73,27 +73,14 @@ class ProductMonitor:
                         print(f"[DEBUG] No variants found for store {store_id}")
                         continue
                     
-                    # Validate store-specific stock (more accurate check)
-                    validated_variants = []
+                    # Add store_id to each variant
+                    # Note: Store-specific validation via /l2s/{l2_id}/stores endpoint is unreliable (returns 400 for many products)
+                    # We trust the API response with storeId parameter which already filters by store stock
                     for variant in variants:
-                        l2_id = variant.get('l2_id')
-                        # Check actual store-specific stock status
-                        store_stock_status = self.api.get_store_specific_stock(l2_id, store_id)
-                        
-                        # Only include if stock status is IN_STOCK or LOW_STOCK at the specific store
-                        if store_stock_status and store_stock_status in ['IN_STOCK', 'LOW_STOCK']:
-                            variant['store_id'] = store_id
-                            variant['store_stock_status'] = store_stock_status  # Actual store stock
-                            validated_variants.append(variant)
-                            print(f"[VALIDATED] ✅ {variant.get('size_name')} available at store {store_id} ({store_stock_status})")
-                        else:
-                            print(f"[VALIDATED] ❌ {variant.get('size_name')} NOT available at store {store_id} (status={store_stock_status})")
-                        
-                        # Small delay to avoid rate limiting
-                        await asyncio.sleep(0.2)
+                        variant['store_id'] = store_id
                     
-                    all_variants.extend(validated_variants)
-                    print(f"[DEBUG] Found {len(validated_variants)}/{len(variants)} variants actually in stock at store {store_id}")
+                    all_variants.extend(variants)
+                    print(f"[DEBUG] Found {len(variants)} variants in store {store_id}")
                     
                     # Small delay between API calls
                     await asyncio.sleep(0.5)
