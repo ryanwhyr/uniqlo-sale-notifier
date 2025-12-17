@@ -355,12 +355,13 @@ class UniqloAPI:
             
             # Debug: Log stock info for troubleshooting
             if l2_id and stock_info:
-                print(f"[STOCK_DEBUG] l2_id={l2_id}, status={stock_status}, quantity={stock_quantity}, size={size_name}")
+                print(f"[STOCK_DEBUG] l2_id={l2_id}, status={stock_status}, quantity={stock_quantity}, size={size_name}, color={color_code}, store={store_name}")
             
             # Include variants with actual stock (quantity > 0) and status IN_STOCK or LOW_STOCK
             # LOW_STOCK with quantity > 0 means still available
             # STOCK_OUT or quantity = 0 means not available
             if stock_quantity > 0 and stock_status in ['IN_STOCK', 'LOW_STOCK']:
+                print(f"[VARIANT_ADDED] ✅ {size_name} {color_code} - qty={stock_quantity}, status={stock_status}, store={store_name}")
                 variants.append({
                     'l2_id': l2_id,
                     'size_code': size_code,
@@ -373,6 +374,8 @@ class UniqloAPI:
                     'stock_status': stock_status,
                     'stock_quantity': stock_quantity
                 })
+            else:
+                print(f"[VARIANT_SKIPPED] ❌ {size_name} {color_code} - qty={stock_quantity}, status={stock_status}, store={store_name}")
         
         return variants
     
