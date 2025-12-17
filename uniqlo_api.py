@@ -101,9 +101,13 @@ class UniqloAPI:
     def check_online_availability(self, product_id: str) -> Dict:
         """Check if product is available in online store and return available sizes"""
         try:
-            # Get product info without store_id to check general/online availability
-            url = f"{self.base_url}/products/{product_id}"
+            # Get product info WITHOUT storeId to check online availability (NOT store-specific)
+            # This endpoint without storeId returns online store stock
+            url = f"{self.base_url}/products/{product_id}/price-groups/00/l2s"
             params = {
+                'withPrices': 'true',
+                'withStocks': 'true',
+                'includePreviousPrice': 'false',
                 'httpFailure': 'true'
             }
             
