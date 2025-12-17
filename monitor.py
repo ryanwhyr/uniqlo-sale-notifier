@@ -90,16 +90,27 @@ class ProductMonitor:
             if not all_variants:
                 print(f"[DEBUG] No variants found for product {product_db_id} in any store")
                 
+                # Check online availability
+                online_check = self.api.check_online_availability(product_id)
+                online_available = online_check.get('available', False)
+                
                 # Send out of stock notification if bot is provided
                 if bot:
                     print(f"[DEBUG] Sending out of stock notification for product {product_db_id}")
                     try:
+                        online_status = ""
+                        if online_available:
+                            online_status = f"🌐 **Tersedia di Online Store** ✅\n"
+                        else:
+                            online_status = f"🌐 **Tidak tersedia di Online Store** ❌\n"
+                        
                         message = (
-                            f"⚠️ **PRODUK TIDAK TERSEDIA**\n\n"
+                            f"⚠️ **PRODUK TIDAK TERSEDIA DI TOKO OFFLINE**\n\n"
                             f"📦 **{product_name}**\n\n"
-                            f"❌ Produk saat ini tidak tersedia di semua toko yang dipantau.\n"
+                            f"❌ Produk saat ini tidak tersedia di semua toko offline yang dipantau.\n\n"
+                            f"{online_status}\n"
                             f"🔔 Bot akan terus memantau dan mengirim notifikasi saat:\n"
-                            f"   • Produk kembali tersedia\n"
+                            f"   • Produk kembali tersedia di toko offline\n"
                             f"   • Produk sedang sale\n\n"
                             f"⏰ {datetime.now().strftime('%d/%m/%Y %H:%M')}"
                         )
@@ -108,11 +119,11 @@ class ProductMonitor:
                             text=message,
                             parse_mode=ParseMode.MARKDOWN
                         )
-                        print(f"[DEBUG] Out of stock notification sent successfully")
+                        print(f"[DEBUG] Out of stock notification sent successfully (online: {online_available})")
                     except Exception as e:
                         print(f"[ERROR] Failed to send out of stock notification: {e}")
                 
-                return {"status": "out_of_stock", "message": "Produk tidak tersedia di semua toko"}
+                return {"status": "out_of_stock", "message": "Produk tidak tersedia di semua toko", "online_available": online_available}
             
             print(f"[DEBUG] Total variants found: {len(all_variants)}")
             
@@ -197,6 +208,7 @@ class ProductMonitor:
                             bot,
                             user_id,
                             product_name,
+                            product_id,
                             sale_variants_by_store
                         )
                     
@@ -222,6 +234,7 @@ class ProductMonitor:
         bot: Bot,
         user_id: int,
         product_name: str,
+        product_id: str,
         sale_variants_by_store: Dict[str, List[Dict]]
     ):
         """Send sale notification to user (ONE notification per product, grouped by store)"""
@@ -247,6 +260,10 @@ class ProductMonitor:
             discount = base_price - lowest_promo_price
             discount_percent = int((discount / base_price) * 100)
             
+            # Check online availability
+            online_check = self.api.check_online_availability(product_id)
+            online_available = online_check.get('available', False)
+            
             # Build message
             message = (
                 "🎉 **PRODUK SEDANG SALE!**\n\n"
@@ -261,8 +278,14 @@ class ProductMonitor:
             
             message += f"\n💸 **Diskon:** {format_price(discount)} ({discount_percent}%)\n\n"
             
+            # Add online availability status
+            if online_available:
+                message += "🌐 **Tersedia di Online Store** ✅\n\n"
+            else:
+                message += "🌐 **Tidak tersedia di Online Store** ❌\n\n"
+            
             # Add store-specific info
-            message += "🏪 **Toko yang Tersedia:**\n"
+            message += "🏪 **Toko Offline yang Tersedia:**\n"
             
             for store_id, variants in sale_variants_by_store.items():
                 store_name = variants[0].get('store_name', f'Store {store_id}')

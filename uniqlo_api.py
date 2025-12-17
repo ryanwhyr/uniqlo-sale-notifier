@@ -69,6 +69,44 @@ class UniqloAPI:
             print(f"Error fetching store info: {e}")
             return None
     
+    def check_online_availability(self, product_id: str) -> Dict:
+        """Check if product is available in online store (without specific store_id)"""
+        try:
+            # Get product info without store_id to check general/online availability
+            url = f"{self.base_url}/products/{product_id}"
+            params = {
+                'httpFailure': 'true'
+            }
+            
+            response = self.session.get(url, params=params, timeout=10)
+            response.raise_for_status()
+            data = response.json()
+            
+            if data.get('status') != 'ok' or 'result' not in data:
+                return {'available': False, 'reason': 'product_not_found'}
+            
+            result = data['result']
+            stocks = result.get('stocks', {})
+            
+            # Check if any variant has online stock
+            online_variants = []
+            for l2_id, stock_info in stocks.items():
+                stock_status = stock_info.get('statusCode', '')
+                stock_quantity = stock_info.get('quantity', 0)
+                
+                # Check if available online (either IN_STOCK or LOW_STOCK with quantity > 0)
+                if stock_quantity > 0 and stock_status in ['IN_STOCK', 'LOW_STOCK']:
+                    online_variants.append(l2_id)
+            
+            return {
+                'available': len(online_variants) > 0,
+                'variant_count': len(online_variants),
+                'reason': 'available' if online_variants else 'out_of_stock'
+            }
+        except Exception as e:
+            print(f"[ERROR] Error checking online availability: {e}")
+            return {'available': False, 'reason': 'error', 'error': str(e)}
+    
     def search_stores_by_product(self, l2_id: str, keyword: str = None, limit: int = 20) -> List[Dict]:
         """Search stores by product variant (l2_id) and optional keyword (city)"""
         try:
