@@ -69,9 +69,57 @@ class UniqloAPI:
             print(f"Error fetching store info: {e}")
             return None
     
-    def search_stores(self, city: str = None) -> List[Dict]:
-        """Search for stores, optionally filter by city"""
+    def search_stores_by_product(self, l2_id: str, keyword: str = None, limit: int = 20) -> List[Dict]:
+        """Search stores by product variant (l2_id) and optional keyword (city)"""
         try:
+            url = f"{self.base_url}/l2s/{l2_id}/stores"
+            params = {
+                'unit': 'km',
+                'priceGroup': '00',
+                'limit': str(limit),
+                'httpFailure': 'true'
+            }
+            
+            if keyword:
+                params['keyword'] = keyword
+            
+            response = self.session.get(url, params=params, timeout=10)
+            response.raise_for_status()
+            data = response.json()
+            
+            if data.get('status') == 'ok' and 'result' in data:
+                result = data['result']
+                stores = result.get('stores', [])
+                
+                # Convert to consistent format
+                formatted_stores = []
+                for store in stores:
+                    formatted_stores.append({
+                        'id': store.get('storeId'),
+                        'name': store.get('storeName'),
+                        'address': '',  # Not provided in this endpoint
+                        'business_status': store.get('businessStatus'),
+                        'stock_status': store.get('stockStatus'),
+                        'distance': store.get('distance')
+                    })
+                
+                return formatted_stores
+            return []
+        except Exception as e:
+            print(f"Error searching stores by product: {e}")
+            return []
+    
+    def search_stores(self, city: str = None) -> List[Dict]:
+        """Search for stores by city name (using a dummy product to get store list)"""
+        try:
+            # Use a common product ID to search stores
+            # We'll use a basic t-shirt product that's available everywhere
+            dummy_l2_id = "09055426"  # Example product variant ID
+            
+            if city:
+                return self.search_stores_by_product(dummy_l2_id, keyword=city, limit=20)
+            
+            # If no city specified, try to get all stores
             url = f"{self.base_url}/stores"
             params = {
                 'includeClosed': 'false',
@@ -83,26 +131,7 @@ class UniqloAPI:
             data = response.json()
             
             if data.get('status') == 'ok' and 'result' in data:
-                stores = data['result']
-                
-                # If city filter is provided, filter stores by city name
-                if city:
-                    city_lower = city.lower()
-                    filtered_stores = []
-                    for store in stores:
-                        # Check various fields that might contain city info
-                        store_city = store.get('city', '').lower()
-                        store_name = store.get('name', '').lower()
-                        store_address = store.get('address', '').lower()
-                        
-                        if (city_lower in store_city or 
-                            city_lower in store_name or 
-                            city_lower in store_address):
-                            filtered_stores.append(store)
-                    
-                    return filtered_stores
-                
-                return stores
+                return data['result']
             return []
         except Exception as e:
             print(f"Error searching stores: {e}")
