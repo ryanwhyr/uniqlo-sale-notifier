@@ -73,42 +73,13 @@ class ProductMonitor:
                         print(f"[DEBUG] No variants found for store {store_id}")
                         continue
                     
-                    # Validate store-specific stock using /l2s/{l2_id}/stores endpoint (ACCURATE)
-                    # This endpoint matches website behavior and shows real offline store stock
-                    validated_variants = []
+                    # Add store_id to each variant
+                    # Trust API response with storeId parameter - it filters by store stock
                     for variant in variants:
-                        l2_id = variant.get('l2_id')
-                        size_name = variant.get('size_name', 'Unknown')
-                        color_code = variant.get('color_code', '')
-                        api_stock_status = variant.get('stock_status', '')
-                        api_stock_quantity = variant.get('stock_quantity', 0)
-                        
-                        print(f"[VALIDATE] Checking {size_name} {color_code} at {store_name}")
-                        print(f"  - API says: status={api_stock_status}, qty={api_stock_quantity}")
-                        
-                        # Try to get accurate store stock status from /l2s/{l2_id}/stores endpoint
-                        store_stock_status = self.api.get_store_specific_stock(l2_id, store_id)
-                        
-                        if store_stock_status == 'IN_STOCK' or store_stock_status == 'LOW_STOCK':
-                            # Confirmed available at this offline store
-                            variant['store_id'] = store_id
-                            variant['store_stock_status'] = store_stock_status
-                            validated_variants.append(variant)
-                            print(f"[VALIDATED] ✅ {size_name} {color_code} CONFIRMED available at {store_name} ({store_stock_status})")
-                        elif store_stock_status == 'OUT_OF_STOCK':
-                            # Confirmed out of stock at this store (even if API says IN_STOCK)
-                            print(f"[VALIDATED] ❌ {size_name} {color_code} CONFIRMED OUT_OF_STOCK at {store_name} (API was wrong!)")
-                        else:
-                            # Endpoint failed (400 error or None) - be conservative: SKIP this variant
-                            # Don't trust API response because it might be online stock, not offline
-                            print(f"[VALIDATED] ⚠️ {size_name} {color_code} - endpoint failed (status={store_stock_status}), SKIPPING (conservative approach)")
-                            print(f"  - Reason: Cannot verify offline stock, might be online-only stock")
-                        
-                        # Small delay to avoid rate limiting
-                        await asyncio.sleep(0.3)
+                        variant['store_id'] = store_id
                     
-                    all_variants.extend(validated_variants)
-                    print(f"[DEBUG] Found {len(validated_variants)}/{len(variants)} variants actually in stock at store {store_id}")
+                    all_variants.extend(variants)
+                    print(f"[DEBUG] Found {len(variants)} variants in store {store_id} ({store_name})")
                     
                     # Small delay between API calls
                     await asyncio.sleep(0.5)
