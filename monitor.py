@@ -141,13 +141,19 @@ class ProductMonitor:
                             if size_name:
                                 all_sizes.add(size_name)
                             
-                            # Get color name
+                            # Get color name (prefer name/displayName, avoid numeric displayCode)
                             color_name = (
                                 color_obj.get('name') or 
                                 color_obj.get('displayName') or 
-                                color_obj.get('label') or
-                                color_obj.get('displayCode', '')
+                                color_obj.get('label')
                             )
+                            # Skip numeric displayCode (like "32", "69") - use empty string instead
+                            if not color_name:
+                                display_code = color_obj.get('displayCode', '')
+                                # Only use displayCode if it's not numeric (e.g., "WHITE" not "32")
+                                if display_code and not display_code.isdigit():
+                                    color_name = display_code
+                            
                             if color_name:
                                 all_colors.add(color_name)
                 except Exception as e:
@@ -380,13 +386,19 @@ class ProductMonitor:
                             if size_name:
                                 all_sizes.add(size_name)
                             
-                            # Get color name
+                            # Get color name (prefer name/displayName, avoid numeric displayCode)
                             color_name = (
                                 color_obj.get('name') or 
                                 color_obj.get('displayName') or 
-                                color_obj.get('label') or
-                                color_obj.get('displayCode', '')
+                                color_obj.get('label')
                             )
+                            # Skip numeric displayCode (like "32", "69") - use empty string instead
+                            if not color_name:
+                                display_code = color_obj.get('displayCode', '')
+                                # Only use displayCode if it's not numeric (e.g., "WHITE" not "32")
+                                if display_code and not display_code.isdigit():
+                                    color_name = display_code
+                            
                             if color_name:
                                 all_colors.add(color_name)
             except Exception as e:
