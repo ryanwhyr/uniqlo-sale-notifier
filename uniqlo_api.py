@@ -31,6 +31,56 @@ class UniqloAPI:
             return product_id
         return None
     
+    def get_l2_id_from_color_size(self, product_id: str, color_display_code: str, size_display_code: str) -> Optional[str]:
+        """Get l2_id (variant ID) from colorDisplayCode and sizeDisplayCode"""
+        try:
+            # Get product data to find matching l2_id
+            url = f"{self.base_url}/products/{product_id}/price-groups/00/l2s"
+            params = {
+                'withPrices': 'true',
+                'withStocks': 'true',
+                'includePreviousPrice': 'false',
+                'httpFailure': 'true'
+            }
+            
+            response = self.session.get(url, params=params, timeout=10)
+            response.raise_for_status()
+            data = response.json()
+            
+            if data.get('status') == 'ok' and 'result' in data:
+                l2s = data['result'].get('l2s', [])
+                for l2 in l2s:
+                    color_code = l2.get('color', {}).get('displayCode', '')
+                    size_code = l2.get('size', {}).get('displayCode', '')
+                    
+                    if color_code == color_display_code and size_code == size_display_code:
+                        l2_id = l2.get('l2Id')
+                        print(f"[L2_ID] Found l2_id={l2_id} for color={color_display_code}, size={size_display_code}")
+                        return l2_id
+                
+                print(f"[L2_ID] No matching l2_id found for color={color_display_code}, size={size_display_code}")
+            return None
+        except Exception as e:
+            print(f"[ERROR] Error getting l2_id from color/size: {e}")
+            return None
+    
+    def check_store_stock_by_color_size(self, product_id: str, color_display_code: str, size_display_code: str, store_id: str) -> Optional[str]:
+        """Check store stock for specific color and size using store-selection endpoint logic
+        
+        Returns: 'IN_STOCK', 'LOW_STOCK', 'OUT_OF_STOCK', or None
+        """
+        try:
+            # Get l2_id from color and size
+            l2_id = self.get_l2_id_from_color_size(product_id, color_display_code, size_display_code)
+            if not l2_id:
+                return None
+            
+            # Use existing endpoint to check store stock
+            return self.get_store_specific_stock(l2_id, store_id)
+        except Exception as e:
+            print(f"[ERROR] Error checking store stock by color/size: {e}")
+            return None
+    
     def get_product_info(self, product_id: str, store_id: str = "113757") -> Optional[Dict]:
         """Get product information including prices and stock"""
         try:
