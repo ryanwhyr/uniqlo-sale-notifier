@@ -403,6 +403,10 @@ class UniqloAPI:
             
             size_code = display_code or full_size_code
             
+            # Debug: Log size extraction
+            print(f"[SIZE_DEBUG] l2_id={l2_id}, displayCode={display_code}, sizeCode={full_size_code}, final_size_code={size_code}")
+            print(f"[SIZE_DEBUG] size_obj fields: name={size_obj.get('name')}, displayName={size_obj.get('displayName')}, label={size_obj.get('label')}")
+            
             # Try multiple fields to get size name
             size_name = (
                 size_obj.get('name') or 
@@ -410,6 +414,8 @@ class UniqloAPI:
                 size_obj.get('label') or 
                 SIZE_CODE_MAP.get(size_code, size_code)
             )
+            
+            print(f"[SIZE_DEBUG] Final size_name={size_name} (from SIZE_CODE_MAP: {SIZE_CODE_MAP.get(size_code, 'NOT_FOUND')})")
             color_code = l2.get('color', {}).get('displayCode', '')
             is_on_sale = l2.get('sales', False)
             

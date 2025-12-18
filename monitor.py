@@ -53,7 +53,7 @@ class ProductMonitor:
                 try:
                     # Get product data from API for this store
                     product_data = self.api.get_product_info(product_id, store_id)
-                    if not product_data:
+                    if not product_data or not isinstance(product_data, dict):
                         print(f"[DEBUG] No product data for store {store_id}")
                         continue
                     
@@ -67,6 +67,10 @@ class ProductMonitor:
                     store_names[store_id] = store_name
                     
                     # Parse product variants for this store
+                    if not product_data.get('l2s') or not isinstance(product_data.get('l2s'), list):
+                        print(f"[DEBUG] No l2s data in product_data for store {store_id}")
+                        continue
+                    
                     variants = self.api.parse_product_data(product_data, store_name)
                     
                     if not variants:
@@ -97,18 +101,42 @@ class ProductMonitor:
                     # Get product data from first store to extract all sizes/colors
                     first_store_id = user_store_ids[0]
                     product_data = self.api.get_product_info(product_id, first_store_id)
-                    if product_data:
+                    if product_data and isinstance(product_data, dict):
                         l2s = product_data.get('l2s', [])
+                        # Size code mapping (same as parse_product_data)
+                        SIZE_CODE_MAP = {
+                            '00': 'FREE SIZE', '001': 'XXS', '002': 'XS', '003': 'S', '004': 'M', 
+                            '005': 'L', '006': 'XL', '007': 'XXL', '008': 'XXXL', '009': '4XL', '010': '5XL',
+                            '027': '27"', '028': '28"', '029': '29"', '030': '30"', '031': '31"', '032': '32"',
+                            '033': '33"', '034': '34"', '035': '35"', '036': '36"', '037': '37"', '038': '38"',
+                            '040': '40"', '042': '42"',
+                            '100': '100cm', '110': '110cm', '120': '120cm', '130': '130cm', 
+                            '140': '140cm', '150': '150cm', '160': '160cm',
+                        }
+                        
                         for l2 in l2s:
                             size_obj = l2.get('size', {})
                             color_obj = l2.get('color', {})
                             
-                            # Get size name
+                            # Get size code
+                            display_code = size_obj.get('displayCode', '')
+                            full_size_code = size_obj.get('sizeCode', '')
+                            
+                            # Extract numeric part if needed
+                            if full_size_code and not display_code:
+                                import re
+                                match = re.search(r'(\d{2,3})$', full_size_code)
+                                if match:
+                                    display_code = match.group(1)
+                            
+                            size_code = display_code or full_size_code
+                            
+                            # Get size name using SIZE_CODE_MAP
                             size_name = (
                                 size_obj.get('name') or 
                                 size_obj.get('displayName') or 
                                 size_obj.get('label') or
-                                size_obj.get('displayCode', '')
+                                SIZE_CODE_MAP.get(size_code, size_code)
                             )
                             if size_name:
                                 all_sizes.add(size_name)
@@ -312,18 +340,42 @@ class ProductMonitor:
                 if user_store_ids:
                     first_store_id = user_store_ids[0]
                     product_data = self.api.get_product_info(product_id, first_store_id)
-                    if product_data:
+                    if product_data and isinstance(product_data, dict):
                         l2s = product_data.get('l2s', [])
+                        # Size code mapping (same as parse_product_data)
+                        SIZE_CODE_MAP = {
+                            '00': 'FREE SIZE', '001': 'XXS', '002': 'XS', '003': 'S', '004': 'M', 
+                            '005': 'L', '006': 'XL', '007': 'XXL', '008': 'XXXL', '009': '4XL', '010': '5XL',
+                            '027': '27"', '028': '28"', '029': '29"', '030': '30"', '031': '31"', '032': '32"',
+                            '033': '33"', '034': '34"', '035': '35"', '036': '36"', '037': '37"', '038': '38"',
+                            '040': '40"', '042': '42"',
+                            '100': '100cm', '110': '110cm', '120': '120cm', '130': '130cm', 
+                            '140': '140cm', '150': '150cm', '160': '160cm',
+                        }
+                        
                         for l2 in l2s:
                             size_obj = l2.get('size', {})
                             color_obj = l2.get('color', {})
                             
-                            # Get size name
+                            # Get size code
+                            display_code = size_obj.get('displayCode', '')
+                            full_size_code = size_obj.get('sizeCode', '')
+                            
+                            # Extract numeric part if needed
+                            if full_size_code and not display_code:
+                                import re
+                                match = re.search(r'(\d{2,3})$', full_size_code)
+                                if match:
+                                    display_code = match.group(1)
+                            
+                            size_code = display_code or full_size_code
+                            
+                            # Get size name using SIZE_CODE_MAP
                             size_name = (
                                 size_obj.get('name') or 
                                 size_obj.get('displayName') or 
                                 size_obj.get('label') or
-                                size_obj.get('displayCode', '')
+                                SIZE_CODE_MAP.get(size_code, size_code)
                             )
                             if size_name:
                                 all_sizes.add(size_name)
