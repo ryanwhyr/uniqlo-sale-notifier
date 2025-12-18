@@ -87,46 +87,81 @@ class ProductMonitor:
                     print(f"[ERROR] Error processing store {store_id}: {e}")
                     continue
             
-            # Check if we found any variants (in stock)
+            # Get all sizes and colors from product (regardless of stock)
+            # Use first store's data to get all available sizes/colors
+            all_sizes = set()
+            all_colors = set()
+            
+            if user_store_ids:
+                try:
+                    # Get product data from first store to extract all sizes/colors
+                    first_store_id = user_store_ids[0]
+                    product_data = self.api.get_product_info(product_id, first_store_id)
+                    if product_data:
+                        l2s = product_data.get('l2s', [])
+                        for l2 in l2s:
+                            size_obj = l2.get('size', {})
+                            color_obj = l2.get('color', {})
+                            
+                            # Get size name
+                            size_name = (
+                                size_obj.get('name') or 
+                                size_obj.get('displayName') or 
+                                size_obj.get('label') or
+                                size_obj.get('displayCode', '')
+                            )
+                            if size_name:
+                                all_sizes.add(size_name)
+                            
+                            # Get color name
+                            color_name = (
+                                color_obj.get('name') or 
+                                color_obj.get('displayName') or 
+                                color_obj.get('label') or
+                                color_obj.get('displayCode', '')
+                            )
+                            if color_name:
+                                all_colors.add(color_name)
+                except Exception as e:
+                    print(f"[ERROR] Error getting all sizes/colors: {e}")
+            
+            # If no variants in stock, send simple notification with all sizes/colors
             if not all_variants:
-                print(f"[DEBUG] No variants found for product {product_db_id} in any store")
+                print(f"[DEBUG] No variants in stock for product {product_db_id}")
                 
-                # Check online availability
-                online_check = self.api.check_online_availability(product_id)
-                online_available = online_check.get('available', False)
-                online_sizes = online_check.get('sizes', [])
-                
-                # Send out of stock notification if bot is provided
+                # Send simple notification if bot is provided
                 if bot:
-                    print(f"[DEBUG] Sending out of stock notification for product {product_db_id}")
+                    print(f"[DEBUG] Sending product info notification for product {product_db_id}")
                     try:
-                        online_status = ""
-                        if online_available and online_sizes:
-                            sizes_str = ", ".join(sorted(set(online_sizes)))
-                            online_status = f"🌐 **Tersedia di Online Store:** {sizes_str} ✅\n"
-                        else:
-                            online_status = f"🌐 **Tidak tersedia di Online Store** ❌\n"
+                        sizes_str = ", ".join(sorted(all_sizes)) if all_sizes else "Tidak tersedia"
+                        colors_str = ", ".join(sorted(all_colors)) if all_colors else ""
                         
-                        message = (
-                            f"⚠️ **PRODUK TIDAK TERSEDIA DI TOKO OFFLINE**\n\n"
-                            f"📦 **{product_name}**\n\n"
-                            f"❌ Produk saat ini tidak tersedia di semua toko offline yang dipantau.\n\n"
-                            f"{online_status}\n"
+                        message = f"📦 **{product_name}**\n\n"
+                        
+                        if sizes_str or colors_str:
+                            message += f"🌐 **Tersedia di Offline dan Online Store:**\n"
+                            if sizes_str:
+                                message += f"📏 **Size:** {sizes_str}\n"
+                            if colors_str:
+                                message += f"🎨 **Warna:** {colors_str}\n"
+                            message += "\n"
+                        
+                        message += (
                             f"🔔 Bot akan terus memantau dan mengirim notifikasi saat:\n"
-                            f"   • Produk kembali tersedia di toko offline\n"
                             f"   • Produk sedang sale\n\n"
                             f"⏰ {datetime.now().strftime('%d/%m/%Y %H:%M')}"
                         )
+                        
                         await bot.send_message(
                             chat_id=user_id,
                             text=message,
                             parse_mode=ParseMode.MARKDOWN
                         )
-                        print(f"[DEBUG] Out of stock notification sent successfully (online: {online_available})")
+                        print(f"[DEBUG] Product info notification sent successfully")
                     except Exception as e:
-                        print(f"[ERROR] Failed to send out of stock notification: {e}")
+                        print(f"[ERROR] Failed to send product info notification: {e}")
                 
-                return {"status": "out_of_stock", "message": "Produk tidak tersedia di semua toko", "online_available": online_available}
+                return {"status": "out_of_stock", "message": "Produk tidak tersedia di semua toko"}
             
             print(f"[DEBUG] Total variants found: {len(all_variants)}")
             
@@ -263,10 +298,47 @@ class ProductMonitor:
             discount = base_price - lowest_promo_price
             discount_percent = int((discount / base_price) * 100)
             
-            # Check online availability
-            online_check = self.api.check_online_availability(product_id)
-            online_available = online_check.get('available', False)
-            online_sizes = online_check.get('sizes', [])
+            # Get all sizes and colors from product (regardless of stock)
+            all_sizes = set()
+            all_colors = set()
+            
+            # Get from first store's product data
+            try:
+                user_store_ids = self.db.get_all_user_store_ids(user_id)
+                if not user_store_ids:
+                    from config import STORE_IDS
+                    user_store_ids = STORE_IDS
+                
+                if user_store_ids:
+                    first_store_id = user_store_ids[0]
+                    product_data = self.api.get_product_info(product_id, first_store_id)
+                    if product_data:
+                        l2s = product_data.get('l2s', [])
+                        for l2 in l2s:
+                            size_obj = l2.get('size', {})
+                            color_obj = l2.get('color', {})
+                            
+                            # Get size name
+                            size_name = (
+                                size_obj.get('name') or 
+                                size_obj.get('displayName') or 
+                                size_obj.get('label') or
+                                size_obj.get('displayCode', '')
+                            )
+                            if size_name:
+                                all_sizes.add(size_name)
+                            
+                            # Get color name
+                            color_name = (
+                                color_obj.get('name') or 
+                                color_obj.get('displayName') or 
+                                color_obj.get('label') or
+                                color_obj.get('displayCode', '')
+                            )
+                            if color_name:
+                                all_colors.add(color_name)
+            except Exception as e:
+                print(f"[ERROR] Error getting all sizes/colors: {e}")
             
             # Build message
             message = (
@@ -282,15 +354,19 @@ class ProductMonitor:
             
             message += f"\n💸 **Diskon:** {format_price(discount)} ({discount_percent}%)\n\n"
             
-            # Add online availability status with sizes
-            if online_available and online_sizes:
-                sizes_str = ", ".join(sorted(set(online_sizes)))
-                message += f"🌐 **Tersedia di Online Store:** {sizes_str} ✅\n\n"
-            else:
-                message += "🌐 **Tidak tersedia di Online Store** ❌\n\n"
+            # Add all sizes and colors
+            if all_sizes or all_colors:
+                message += f"🌐 **Tersedia di Offline dan Online Store:**\n"
+                if all_sizes:
+                    sizes_str = ", ".join(sorted(all_sizes))
+                    message += f"📏 **Size:** {sizes_str}\n"
+                if all_colors:
+                    colors_str = ", ".join(sorted(all_colors))
+                    message += f"🎨 **Warna:** {colors_str}\n"
+                message += "\n"
             
             # Add store-specific info
-            message += "🏪 **Toko Offline yang Tersedia:**\n"
+            message += "🏪 **Toko yang Tersedia:**\n"
             
             for store_id, variants in sale_variants_by_store.items():
                 store_name = variants[0].get('store_name', f'Store {store_id}')
