@@ -180,6 +180,22 @@ class ProductMonitor:
                                 message += f"🎨 **Warna:** {colors_str}\n"
                             message += "\n"
                         
+                        # Add all monitored stores
+                        message += "🏪 **Toko:**\n"
+                        for store_id in user_store_ids:
+                            try:
+                                store_info = self.api.get_store_info(store_id)
+                                if store_info and isinstance(store_info, dict):
+                                    store_name = store_info.get('name', f'Store {store_id}')
+                                else:
+                                    store_name = f'Store {store_id}'
+                            except Exception:
+                                store_name = f'Store {store_id}'
+                            
+                            message += f"\n• **{store_name}** ❌\n"
+                            message += f"  📏 Size: Tidak tersedia\n"
+                        
+                        message += "\n"
                         message += (
                             f"🔔 Bot akan terus memantau dan mengirim notifikasi saat:\n"
                             f"   • Produk sedang sale\n\n"
@@ -429,59 +445,83 @@ class ProductMonitor:
                     message += f"🎨 **Warna:** {colors_str}\n"
                 message += "\n"
             
-            # Add store-specific info
-            message += "🏪 **Toko yang Tersedia:**\n"
+            # Get all monitored stores
+            user_store_ids = self.db.get_all_user_store_ids(user_id)
+            if not user_store_ids:
+                from config import STORE_IDS
+                user_store_ids = STORE_IDS
             
-            for store_id, variants in sale_variants_by_store.items():
-                store_name = variants[0].get('store_name', f'Store {store_id}')
+            # Get store names for all monitored stores
+            all_store_info = {}
+            for store_id in user_store_ids:
+                try:
+                    store_info = self.api.get_store_info(store_id)
+                    if store_info and isinstance(store_info, dict):
+                        store_name = store_info.get('name', f'Store {store_id}')
+                    else:
+                        store_name = f'Store {store_id}'
+                    all_store_info[store_id] = store_name
+                except Exception as e:
+                    print(f"[ERROR] Error getting store info for {store_id}: {e}")
+                    all_store_info[store_id] = f'Store {store_id}'
+            
+            # Add store-specific info (show ALL stores, available and not available)
+            message += "🏪 **Toko:**\n"
+            
+            # Smart size sorting function
+            def sort_size(size_str):
+                # Standard sizes
+                size_order = {
+                    'FREE SIZE': -1, 'XXS': 0, 'XS': 1, 'S': 2, 'M': 3, 
+                    'L': 4, 'XL': 5, 'XXL': 6, 'XXXL': 7, '4XL': 8, '5XL': 9
+                }
                 
-                # Collect sizes for this store
-                sizes_on_sale = [v.get('size_name', v.get('size_code', '')) for v in variants]
+                size_upper = size_str.upper()
                 
-                # Smart size sorting function
-                def sort_size(size_str):
-                    # Standard sizes
-                    size_order = {
-                        'FREE SIZE': -1, 'XXS': 0, 'XS': 1, 'S': 2, 'M': 3, 
-                        'L': 4, 'XL': 5, 'XXL': 6, 'XXXL': 7, '4XL': 8, '5XL': 9
-                    }
-                    
-                    size_upper = size_str.upper()
-                    
-                    # If it's a standard size, use the predefined order
-                    if size_upper in size_order:
-                        return (0, size_order[size_upper])
-                    
-                    # If it's an inch size (e.g., 27", 28", etc.)
-                    if '"' in size_str or 'INCH' in size_upper:
-                        import re
-                        match = re.search(r'(\d+)', size_str)
-                        if match:
-                            return (1, int(match.group(1)))
-                    
-                    # If it's a cm size (e.g., 100cm, 110cm, etc.)
-                    if 'CM' in size_upper:
-                        import re
-                        match = re.search(r'(\d+)', size_str)
-                        if match:
-                            return (2, int(match.group(1)))
-                    
-                    # If it's a pure number (e.g., 027, 028, etc.)
-                    if size_str.isdigit():
-                        return (3, int(size_str))
-                    
-                    # Default: alphabetical
-                    return (99, size_str)
+                # If it's a standard size, use the predefined order
+                if size_upper in size_order:
+                    return (0, size_order[size_upper])
                 
-                sorted_sizes = sorted(set(sizes_on_sale), key=sort_size)
-                sizes_text = ", ".join(sorted_sizes)
+                # If it's an inch size (e.g., 27", 28", etc.)
+                if '"' in size_str or 'INCH' in size_upper:
+                    import re
+                    match = re.search(r'(\d+)', size_str)
+                    if match:
+                        return (1, int(match.group(1)))
                 
-                # Get price for this store
-                store_promo_price = variants[0]['promo_price']
+                # If it's a cm size (e.g., 100cm, 110cm, etc.)
+                if 'CM' in size_upper:
+                    import re
+                    match = re.search(r'(\d+)', size_str)
+                    if match:
+                        return (2, int(match.group(1)))
                 
-                message += f"\n• **{store_name}**\n"
-                message += f"  📏 Size: {sizes_text}\n"
-                message += f"  💰 Harga: {format_price(store_promo_price)}\n"
+                # If it's a pure number (e.g., 027, 028, etc.)
+                if size_str.isdigit():
+                    return (3, int(size_str))
+                
+                # Default: alphabetical
+                return (99, size_str)
+            
+            # Show all stores
+            for store_id in user_store_ids:
+                store_name = all_store_info.get(store_id, f'Store {store_id}')
+                
+                if store_id in sale_variants_by_store:
+                    # Store has stock
+                    variants = sale_variants_by_store[store_id]
+                    sizes_on_sale = [v.get('size_name', v.get('size_code', '')) for v in variants]
+                    sorted_sizes = sorted(set(sizes_on_sale), key=sort_size)
+                    sizes_text = ", ".join(sorted_sizes)
+                    store_promo_price = variants[0]['promo_price']
+                    
+                    message += f"\n• **{store_name}** ✅\n"
+                    message += f"  📏 Size: {sizes_text}\n"
+                    message += f"  💰 Harga: {format_price(store_promo_price)}\n"
+                else:
+                    # Store doesn't have stock
+                    message += f"\n• **{store_name}** ❌\n"
+                    message += f"  📏 Size: Tidak tersedia\n"
             
             message += f"\n⏰ {datetime.now().strftime('%d/%m/%Y %H:%M')}"
             
